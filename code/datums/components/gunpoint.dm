@@ -14,18 +14,27 @@
 
 /datum/component/gunpoint
 	dupe_mode = COMPONENT_DUPE_UNIQUE
-
 	/// Who we're holding up
 	var/mob/living/target
 	/// The gun we're holding them up with
 	var/obj/item/gun/weapon
-
 	/// Which stage we're on
 	var/stage = 1
 	/// How much the damage and wound values will be multiplied by
 	var/damage_mult = GUNPOINT_MULT_STAGE_1
 	/// If TRUE, we're committed to firing the shot, for async purposes
 	var/point_of_no_return = FALSE
+
+	/// Toggles for set by gunpoint radial menu
+	var/allow_use = TRUE
+	var/allow_move = FALSE
+	var/allow_talk = TRUE
+
+	var/list/options = list(
+		"Movement" = icon('icons/hud/radial.dmi', "radial_eject"),
+		"Talking" = icon('icons/hud/radial.dmi', "mail_dump"),
+		"Interacting" = icon('icons/hud/radial.dmi', "mail_sort")
+	)
 
 // *extremely bad russian accent* no!
 /datum/component/gunpoint/Initialize(mob/living/targ, obj/item/gun/wep)
@@ -39,14 +48,23 @@
 	RegisterSignals(targ, list(
 		COMSIG_MOB_ATTACK_HAND,
 		COMSIG_MOB_ITEM_ATTACK,
-		COMSIG_MOVABLE_MOVED,
-		COMSIG_MOB_FIRED_GUN,
+		COMSIG_MOB_FIRED_GUN,), PROC_REF(trigger_reaction)) //Will always cause a reaction shot
+	if(allow_move)
+		RegisterSignals(targ, COMSIG_MOVABLE_MOVED, PROC_REF(trigger_reaction))
+		return
+	if(allow_talk)
+		RegisterSignals(targ, COMSIG_MOB_SAY, PROC_REF(trigger_reaction))
+		return
+	if(allow_use)
+		RegisterSignals(targ, list(
+		COMSIG_LIVING_PICKED_UP_ITEM,
 		COMSIG_MOVABLE_SET_GRAB_STATE,
 		COMSIG_LIVING_START_PULL), PROC_REF(trigger_reaction))
+		return  //Need cosmig for adjacent machine usage.  Also I can't just proc ref the same thing 4 times, gotta figure out proper implantation
 	RegisterSignal(targ, COMSIG_ATOM_EXAMINE, PROC_REF(examine_target))
 	RegisterSignal(targ, COMSIG_LIVING_PRE_MOB_BUMP, PROC_REF(block_bumps_target))
 	RegisterSignals(targ, list(COMSIG_LIVING_DISARM_HIT, COMSIG_LIVING_GET_PULLED), PROC_REF(cancel))
-	RegisterSignals(weapon, list(COMSIG_ITEM_DROPPED, COMSIG_ITEM_EQUIPPED), PROC_REF(cancel))
+	RegisterSignals(wep, list(COMSIG_ITEM_DROPPED, COMSIG_ITEM_EQUIPPED), PROC_REF(cancel))
 
 	var/distance = max(get_dist(shooter, target), 1) // treat 0 distance as adjacent
 	var/distance_description = (distance <= 1 ? "point blank " : "")
@@ -72,6 +90,23 @@
 			shooter.client.give_award(/datum/award/achievement/misc/rocket_holdup, shooter)
 
 	addtimer(CALLBACK(src, PROC_REF(update_stage), 2), GUNPOINT_DELAY_STAGE_2)
+
+/datum/component/gunpoint/proc/gunpoint_radial(mob/user)  //Apparently this isn't defining correctly
+	var/mob/living/shooter = parent
+	var/choice = show_radial_menu(
+		parent,
+		target,
+		options,
+		autopick_single_option = TRUE,)
+	if (!choice)
+		return
+	switch (choice)
+		if ("Movement")
+			allow_talk = !allow_talk
+		if ("Talking")
+			allow_move = !allow_move
+		if ("Interacting")
+			allow_use = !allow_use
 
 /datum/component/gunpoint/Destroy(force)
 	var/mob/living/shooter = parent

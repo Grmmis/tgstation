@@ -359,13 +359,15 @@
 	if (user == interacting_with)
 		balloon_alert(user, "can't hold yourself up!")
 		return ITEM_INTERACT_BLOCKING
-
+	if (gunpoint_component.target == interacting_with)
+		user.AddComponent(/datum/component/gunpoint/proc/gunpoint_radial, mob/user)
+		return ITEM_INTERACT_SUCCESS
 	if(do_after(user, 0.5 SECONDS, interacting_with))
 		user.AddComponent(/datum/component/gunpoint, interacting_with, src)
 	return ITEM_INTERACT_SUCCESS
 
 /obj/item/gun/ranged_interact_with_atom(atom/interacting_with, mob/living/user, list/modifiers)
-	return try_fire_gun(interacting_with, user, list2params(modifiers))
+	return try_fire_gun(interactin	g_with, user, list2params(modifiers))
 
 /obj/item/gun/ranged_interact_with_atom_secondary(atom/interacting_with, mob/living/user, list/modifiers)
 	if(IN_GIVEN_RANGE(user, interacting_with, GUNPOINT_SHOOTER_STRAY_RANGE))
